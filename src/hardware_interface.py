@@ -25,6 +25,8 @@ class hardware_interface:
 
         self.__vel_gain = 1/1000.0
         self.__mpu_gain = 1/3754.9
+        self.__ticks_per_rev = 1320.0
+        self.__pi = 3.14159
 
         self.t_vel = Array('d', 3) # translational velocities x y z
         self.r_vel = Value('d')    # rotational velocity z
@@ -101,7 +103,11 @@ class hardware_interface:
                 self.__wheel_values[2] = struct.unpack('i', packet_data[4:8])[0]
                 self.__wheel_values[1] = struct.unpack('i', packet_data[8:12])[0]
                 self.__wheel_values[3] = struct.unpack('i', packet_data[12:16])[0]
-                print(self.__wheel_values)
+                self.__wheel_values[0] = self.__wheel_values[0]/self.__ticks_per_rev*2*self.__pi
+                self.__wheel_values[2] = self.__wheel_values[2]/self.__ticks_per_rev*2*self.__pi
+                self.__wheel_values[1] = self.__wheel_values[1]/self.__ticks_per_rev*2*self.__pi
+                self.__wheel_values[3] = self.__wheel_values[3]/self.__ticks_per_rev*2*self.__pi
+                print('Wheel Radians',self.__wheel_values)
 
             else:
                 #placeholder

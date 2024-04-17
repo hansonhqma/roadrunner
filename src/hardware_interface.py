@@ -1,7 +1,8 @@
 import serial
 import time
 import struct
-
+import kinematics
+import numpy as np
 from multiprocessing import Process, Value, Array
 
 class hardware_interface:
@@ -28,6 +29,9 @@ class hardware_interface:
         self.__ticks_per_rev = 1320.0
         self.__pi = 3.14159
 
+        self.__model = robot_model(0.03, 0.18, 0.2)
+        self.__FK_matrix = self.__model.forward_matrix
+
         self.t_vel = Array('d', 3) # translational velocities x y z
         self.r_vel = Value('d')    # rotational velocity z
         self.rot = Value('d')      # rotational position z
@@ -36,11 +40,13 @@ class hardware_interface:
         # integrator
         self.__INTEGRATION_TIME = 0
         self.__previous_r_vel = 0
+        self.__delta_r_IMU = 0
 
         self.__listener_process = None
 
         # internal encoder information
-        self.__wheel_values = [0, 0, 0, 0]
+        self.__wheel_values = np.array([0, 0, 0, 0])
+        self.__previous_wheel_values = self.__wheel_values
 
     def __read_data(self, t_vel, r_vel, rot, batt):
         while True:
@@ -95,7 +101,9 @@ class hardware_interface:
 
 
                 # rot.value as of line 89 is purely estimate based on imu
-                rot.value += dt*(self.__previous_r_vel + raw_value)/2
+                self.__delta_r_IMU = dt*(self.__previous_r_vel + raw_value)/2
+                #old way of doing it
+                #rot.value += dt*(self.__previous_r_vel + raw_value)/2
                 #print(rot.value, raw_value)
                 self.__previous_r_vel = raw_value
             elif packet_type == self.__encoder_data_type:
@@ -103,11 +111,24 @@ class hardware_interface:
                 self.__wheel_values[2] = struct.unpack('i', packet_data[4:8])[0]
                 self.__wheel_values[1] = struct.unpack('i', packet_data[8:12])[0]
                 self.__wheel_values[3] = struct.unpack('i', packet_data[12:16])[0]
-                self.__wheel_values[0] = self.__wheel_values[0]/self.__ticks_per_rev*2*self.__pi
-                self.__wheel_values[2] = self.__wheel_values[2]/self.__ticks_per_rev*2*self.__pi
-                self.__wheel_values[1] = self.__wheel_values[1]/self.__ticks_per_rev*2*self.__pi
-                self.__wheel_values[3] = self.__wheel_values[3]/self.__ticks_per_rev*2*self.__pi
+                #self.__wheel_values[0] = self.__wheel_values[0]/self.__ticks_per_rev*2*self.__pi
+                #self.__wheel_values[2] = self.__wheel_values[2]/self.__ticks_per_rev*2*self.__pi
+                #self.__wheel_values[1] = self.__wheel_values[1]/self.__ticks_per_rev*2*self.__pi
+                #self.__wheel_values[3] = self.__wheel_values[3]/self.__ticks_per_rev*2*self.__pi
+                #convert wheel ticks to radians
+                self.__wheel_values = self.__wheel_values/self.__ticks_per_rev*2*self.__pi
+                #print values to console
                 print('Wheel Radians',self.__wheel_values)
+                #calculate change in wheel radians from last time step
+                delta_theta = self.__wheel_values - self.__previous_wheel_values
+                #calculate change kinematic vector from last time step
+                delta_kin_vector = self.__FK_matrix @ delta_theta
+                #pull off the rotation value from the kinematics
+                delta_r_enc = delta_kin_vector[2]
+                #sensor fusion to update rotation value
+                rot.value += 0.8*(self.__delta_r_IMU) + 0.2*(delta_r_enc)
+                #store current value to old value
+                self.__previous_wheel_values = self.__wheel_values
 
             else:
                 #placeholder

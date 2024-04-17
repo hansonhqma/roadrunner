@@ -20,6 +20,8 @@ class hardware_interface:
 
         self.__vel_data_type = 0x0a
         self.__mpu_data_type = 0x0b
+        self.__encoder_data_type = 0x0d
+        self.__valid_msg_types = (self.__vel_data_type, self.__mpu_data_type, self.__encoder_data_type)
 
         self.__vel_gain = 1/1000.0
         self.__mpu_gain = 1/3754.9
@@ -35,6 +37,9 @@ class hardware_interface:
 
         self.__listener_process = None
 
+        # internal encoder information
+        self.__wheel_values = [0, 0, 0, 0]
+
     def __read_data(self, t_vel, r_vel, rot, batt):
         while True:
             if not self.__com.read()[0] == self.__packet_head:
@@ -49,8 +54,9 @@ class hardware_interface:
             packet_type = self.__com.read()[0]
             data_length = packet_len - 2 # already read two bytes of the packet, rest is data
 
-            if packet_type not in (0x0a, 0x0b):
+            if packet_type not in self.__valid_msg_types:
                 continue
+
 
             if self.report_time != 0:
                 dt = time.time() - self.report_time
@@ -64,26 +70,42 @@ class hardware_interface:
                 continue
 
             # valid checksum, parse message
+
             
             if packet_type == self.__vel_data_type:
                 t_vel[0] = struct.unpack('h', packet_data[0:2])[0] * self.__vel_gain
                 t_vel[1] = struct.unpack('h', packet_data[2:4])[0] * self.__vel_gain
                 t_vel[2] = struct.unpack('h', packet_data[4:6])[0] * self.__vel_gain
                 batt.value = struct.unpack('B', packet_data[6:7])[0]
-            else: #packet type is 0x0b
+
+            elif packet_type == self.__mpu_data_type: #packet type is 0x0b
                 raw_value = struct.unpack('h', packet_data[4:6])[0] * self.__mpu_gain
                 r_vel.value = raw_value
                 # integrate with new rotational velocity value
+
                 if self.__INTEGRATION_TIME == 0:
                     self.__INTEGRATION_TIME = time.time()
                     self.__previous_r_vel = raw_value
                     continue
+
                 dt = time.time() - self.__INTEGRATION_TIME
                 self.__INTEGRATION_TIME = time.time()
 
+
+                # rot.value as of line 89 is purely estimate based on imu
                 rot.value += dt*(self.__previous_r_vel + raw_value)/2
                 #print(rot.value, raw_value)
                 self.__previous_r_vel = raw_value
+            elif packet_type == self.__encoder_data_type:
+                self.__wheel_values[0] = struct.unpack('i', packet_data[0:4])[0]
+                self.__wheel_values[2] = struct.unpack('i', packet_data[4:8])[0]
+                self.__wheel_values[1] = struct.unpack('i', packet_data[8:12])[0]
+                self.__wheel_values[3] = struct.unpack('i', packet_data[12:16])[0]
+                print(self.__wheel_values)
+
+            else:
+                #placeholder
+                continue
 
     def drive(self, w1, w2, w3, w4):
         # pwm duty cycles between -100 and 100

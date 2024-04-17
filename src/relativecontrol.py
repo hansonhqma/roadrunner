@@ -4,7 +4,7 @@ import evdev
 import serial
 from hardware_interface import hardware_interface
 
-controller = evdev.InputDevice('/dev/input/event4')
+controller = evdev.InputDevice('/dev/input/event2')
 
 kinematics_model = kinematics.robot_model(0.03, 0.18, 0.2)
 
@@ -22,6 +22,9 @@ rotate_gain = 4
 # vx, vy, vrz
 steer_desired = np.array([0, 0, 0], dtype=np.float64)
 pose_transorm = np.array([[1,0],[0,1]], dtype=np.float64)
+
+def normalize(val):
+    return min(127, max(-128, val))
 
 for event in controller.read_loop():
 
@@ -60,11 +63,14 @@ for event in controller.read_loop():
 
     pose_transform = np.array([[np.cos(rpos), np.sin(rpos), 0], [-np.sin(rpos), np.cos(rpos), 0], [0, 0, 1]], dtype=np.float64)
     
-    steer_desired = pose_transform @ steer_desired
+    steer_desired_rel = pose_transform @ steer_desired
     
-    print("Vx: {:.5f}, Vy: {:.5f}, Vrz: {:.5f}, Rpos: {:.3f}".format(steer_desired[0], steer_desired[1], steer_desired[2], hw_interface.rot.value))
+    print("Vx: {:.5f}, Vy: {:.5f}, Vrz: {:.5f}, Rpos: {:.3f}".format(steer_desired_rel[0], steer_desired_rel[1], steer_desired_rel[2], np.rad2deg(hw_interface.rot.value)))
 
-    drive_input = drive_gain * (kinematics_model.inverse_matrix @ steer_desired)
+    drive_input = drive_gain * (kinematics_model.inverse_matrix @ steer_desired_rel)
+
+    drive_input = [normalize(x) for x in drive_input]
+
     hw_interface.drive(int(drive_input[0]), int(drive_input[1]), int(drive_input[2]), int(drive_input[3]))
 
 

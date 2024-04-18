@@ -10,6 +10,8 @@ class hid:
         self.__axis_codes = (0, 1, 3)
         self.__AXIS_MAX = 1<<15
         self.__deadzone = 0.2
+        self.__rotation_gain = 4.5
+        self.__throttle_gain = 1.3
 
         self.vtx = Value('d')
         self.vty = Value('d')
@@ -30,21 +32,21 @@ class hid:
             if event.code == 0:
                 throttle = event.value/self.__AXIS_MAX
                 if abs(throttle) > self.__deadzone:
-                    vtx.value = throttle
+                    vtx.value = self.__throttle_gain * throttle
                 else:
                     vtx.value = 0
 
             elif event.code == 1:
                 throttle = -event.value/self.__AXIS_MAX
                 if abs(throttle) > self.__deadzone:
-                    vty.value = throttle
+                    vty.value = self.__throttle_gain * throttle
                 else:
                     vty.value = 0
 
             elif event.code == 3:
                 throttle = -event.value/self.__AXIS_MAX
                 if abs(throttle) > self.__deadzone:
-                    vrz.value = throttle
+                    vrz.value = self.__rotation_gain * throttle
                 else:
                     vrz.value = 0
 
@@ -53,6 +55,3 @@ class hid:
         self.__hid_process.start()
 
         print("STARTED HID LISTENER PROCESS AT", self.__hid_process.pid)
-        while True:
-            time.sleep(0.02)
-            print(self.vtx.value, self.vty.value, self.vrz.value)

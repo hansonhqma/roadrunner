@@ -1,7 +1,5 @@
 import kinematics
 import numpy as np
-import evdev
-import serial
 from hardware_interface import hardware_interface
 from hid_interface import hid
 
@@ -14,7 +12,6 @@ hid_proc = hid()
 # start multiprocessing runtimes
 hw_interface.start_ipc()
 hid_proc.start_ipc()
-
 
 pose_transorm = np.array([[1,0],[0,1]], dtype=np.float64)
 
@@ -31,7 +28,7 @@ while True:
     
     steer_desired_rel = pose_transform @ np.array([hid_proc.vtx.value, hid_proc.vty.value, hid_proc.vrz.value])
     
-    print("Vx: {:.5f}, Vy: {:.5f}, Vrz: {:.5f}, Rpos: {:.3f}".format(steer_desired_rel[0], steer_desired_rel[1], steer_desired_rel[2], np.rad2deg(hw_interface.rot.value)))
+    print("Vx: {:.5f}, Vy: {:.5f}, Vrz: {:.5f}, Rz(deg): {:.3f}".format(steer_desired_rel[0], steer_desired_rel[1], steer_desired_rel[2], np.rad2deg(hw_interface.rot.value)))
 
     drive_input = (kinematics_model.inverse_matrix @ steer_desired_rel)
 

@@ -1,5 +1,7 @@
 import kinematics
 import numpy as np
+import evdev
+import serial
 from hardware_interface import hardware_interface
 from hid_interface import hid
 
